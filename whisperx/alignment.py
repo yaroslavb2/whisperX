@@ -159,6 +159,13 @@ def align(
         else:
             per_word = text
 
+        # make sure the leading and tailing word boundary exists.
+        if model_lang not in LANGUAGES_WITHOUT_SPACES:
+            if not text.startswith(" "):
+                text = " " + text
+            if not text.endswith(" "):
+                text = text + " "
+
         clean_char, clean_cdx = [], []
         for cdx, char in enumerate(text):
             char_ = char.lower()
@@ -174,10 +181,13 @@ def align(
             elif char_ in model_dictionary.keys():
                 clean_char.append(char_)
                 clean_cdx.append(cdx)
-            else:
-                # add placeholder
+            elif char_ not in '!"\',.:;<=>?[\\]^_`{|}':
+                # add placeholder for numbers or pronunciable punctuation, like &, $
                 clean_char.append('*')
                 clean_cdx.append(cdx)
+            else:
+                # dirty char
+                pass
 
         clean_wdx = []
         for wdx, wrd in enumerate(per_word):
@@ -329,8 +339,26 @@ def align(
                 # dont use space character for alignment
                 word_chars = word_chars[word_chars["char"] != " "]
 
-                word_start = word_chars["start"].min()
-                word_end = word_chars["end"].max()
+                # problem: sometimes word time range absorbs silence before/after. 
+                # The silence has a low score, so filter it on that basis, but still the first 
+                # character with a high score could be holding the silence --> assume it takes <0.5s to pronounce each char. 
+                # It's a mess but it works. 
+                valid_chars = word_chars[word_chars["start"].notnull() & word_chars["end"].notnull()]
+                valid_chars = valid_chars[valid_chars['score'] > 0.2]
+                if len(valid_chars) > 0:
+                    first_char = valid_chars.iloc[0]
+                    if first_char['end'] - first_char['start'] < 0.5:
+                        word_start = first_char['start']
+                    else:
+                        word_start = first_char['end']
+                    last_char = valid_chars.iloc[-1]
+                    if last_char['end'] - last_char['start'] < 0.5:
+                        word_end = last_char['end']
+                    else:
+                        word_end = last_char['start']
+                else:
+                    word_start = word_chars["start"].min()
+                    word_end = word_chars["end"].max()
                 word_score = round(word_chars["score"].mean(), 3)
 
                 # -1 indicates unalignable 
