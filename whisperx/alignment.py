@@ -348,17 +348,18 @@ def align(
                 word_end = word_chars["end"].max()
                 word_score = round(word_chars["score"].mean(), 3)
                 if word_end - word_start > 0.3 * len(word_chars):
+                    f1 = round(word_start * SAMPLE_RATE)
+                    f2 = round(word_end * SAMPLE_RATE)
+                    m = (f1 + f2) // 2
+                    first_half_acivity = audio[:, f1:m].abs().mean()
+                    second_half_acivity = audio[:, m:f2].abs().mean()
                     # word probably absorbed space somewhere. 
-                    if word_idx == word_idxs.min():
-                        # first word in segment - silence came first - remove it:
+                    if first_half_acivity <= second_half_acivity:
+                        # silence came first - remove it:
                         word_start = word_end - 0.15 * len(word_chars)
-                    elif word_idx == word_idxs.max():
-                        # last word in segment - silence came at end - remove it:
-                        word_end = word_start + 0.15 * len(word_chars)
                     else:
-                        # default to moving start
-                        word_start = word_end - 0.15 * len(word_chars)
-                        pass
+                        # silence came at end - remove it:
+                        word_end = word_start + 0.15 * len(word_chars)
 
                 # -1 indicates unalignable 
                 word_segment = {"word": word_text}
