@@ -331,7 +331,8 @@ def align(
             sentence_end = end_chars["end"].max()
             sentence_words = []
 
-            for word_idx in curr_chars["word-idx"].unique():
+            word_idxs = curr_chars["word-idx"].unique()
+            for word_idx in word_idxs:
                 word_chars = curr_chars.loc[curr_chars["word-idx"] == word_idx]
                 word_text = "".join(word_chars["char"].tolist()).strip()
                 if len(word_text) == 0:
@@ -339,10 +340,25 @@ def align(
 
                 # dont use space character for alignment
                 word_chars = word_chars[word_chars["char"] != " "]
+                
+                valid_chars = word_chars[word_chars["start"].notnull() & word_chars["end"].notnull()]
+                valid_chars = valid_chars[valid_chars['score'] > 0.2]
 
                 word_start = word_chars["start"].min()
                 word_end = word_chars["end"].max()
                 word_score = round(word_chars["score"].mean(), 3)
+                if word_end - word_start > 0.3 * len(word_chars):
+                    # word probably absorbed space somewhere. 
+                    if word_idx == word_idxs.min():
+                        # first word in segment - silence came first - remove it:
+                        word_start = word_end - 0.15 * len(word_chars)
+                    elif word_idx == word_idxs.max():
+                        # last word in segment - silence came at end - remove it:
+                        word_end = word_start + 0.15 * len(word_chars)
+                    else:
+                        # default to moving start
+                        word_start = word_end - 0.15 * len(word_chars)
+                        pass
 
                 # -1 indicates unalignable 
                 word_segment = {"word": word_text}
@@ -395,7 +411,7 @@ source: https://pytorch.org/tutorials/intermediate/forced_alignment_with_torchau
 """
 
 
-def get_trellis(emission, tokens, blank_id=0, space_id=1, delta=0.1):
+def get_trellis(emission, tokens, blank_id=0, space_id=1, delta=0.):
     # easier to transition to space by delta
     emission[:, space_id] += delta
     
