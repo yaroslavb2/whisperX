@@ -21,7 +21,7 @@ class Silero(Vad):
         self.vad_onset = kwargs['vad_onset']
         self.chunk_size = kwargs['chunk_size']
         self.min_duration_off = kwargs.get('min_duration_off', 0.1)
-        self.min_duration_on = kwargs.get('min_duration_on', 0.1)
+        self.min_duration_on = kwargs.get('min_duration_on', 0.02)
         self.dilatation = kwargs.get('dilatation', 0.3)
         self.vad_pipeline, vad_utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                                                       model='silero_vad',
