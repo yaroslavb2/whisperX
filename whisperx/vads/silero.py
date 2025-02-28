@@ -56,7 +56,7 @@ class Silero(Vad):
             for ts in timestamps:
                 new_ts = {
                     "start": max(0, ts["start"] - dil),
-                    "end": min(self.chunk_size * sample_rate, ts["end"] + dil),
+                    "end": min(len(audio["waveform"]), ts["end"] + dil),
                 }
                 if len(new_timestamps) > 0 and new_timestamps[-1]["end"] >= new_ts["start"]:
                     # merge
