@@ -56,7 +56,7 @@ class Silero(Vad):
             for ts in timestamps:
                 new_ts = {
                     "start": max(0, ts["start"] - dilatation),
-                    "end": min(self.chunk_size * sample_rate), ts["end"] + dilatation),
+                    "end": min(self.chunk_size * sample_rate, ts["end"] + dilatation),
                 }
                 if len(new_timestamps) > 0 and new_timestamps[-1]["end"] >= new_ts["start"]:
                     # merge
