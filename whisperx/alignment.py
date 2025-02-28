@@ -266,11 +266,14 @@ def align(
         emission = emissions[0].cpu().detach()
 
         blank_id = 0
+        space_id = 1
         for char, code in model_dictionary.items():
             if char == '[pad]' or char == '<pad>':
                 blank_id = code
+            if char == '|':
+                space_id = code
 
-        trellis = get_trellis(emission, tokens, blank_id)
+        trellis = get_trellis(emission, tokens, blank_id, space_id)
         # path = backtrack(trellis, emission, tokens, blank_id)
         path = backtrack_beam(trellis, emission, tokens, blank_id, beam_width=2)
 
@@ -392,7 +395,10 @@ source: https://pytorch.org/tutorials/intermediate/forced_alignment_with_torchau
 """
 
 
-def get_trellis(emission, tokens, blank_id=0):
+def get_trellis(emission, tokens, blank_id=0, space_id=1, delta=0.1):
+    # easier to transition to space by delta
+    emission[:, space_id] += delta
+    
     num_frame = emission.size(0)
     num_tokens = len(tokens)
 
@@ -401,14 +407,15 @@ def get_trellis(emission, tokens, blank_id=0):
     trellis[0, 1:] = -float("inf")
     trellis[-num_tokens + 1:, 0] = float("inf")
 
+    
     for t in range(num_frame - 1):
-        trellis[t + 1, 1:] = torch.maximum(
-            # Score for staying at the same token
-            trellis[t, 1:] + emission[t, blank_id],
-            # Score for changing to the next token
-            # trellis[t, :-1] + emission[t, tokens[1:]],
-            trellis[t, :-1] + get_wildcard_emission(emission[t], tokens[1:], blank_id),
-        )
+        prev_stay_score = trellis[t, 1:] + emission[t, blank_id]
+        # harder to transition from space by delta
+        space_mask = tokens[1:] == space_id
+        prev_stay_score[space_mask] += delta
+        # prev_change_score = trellis[t, :-1] + emission[t, tokens[1:]]
+        prev_change_score = trellis[t, :-1] + get_wildcard_emission(emission[t], tokens[1:], blank_id)
+        trellis[t + 1, 1:] = torch.maximum(prev_stay_score, prev_change_score)
     return trellis
 
 
