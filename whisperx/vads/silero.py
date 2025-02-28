@@ -20,6 +20,9 @@ class Silero(Vad):
 
         self.vad_onset = kwargs['vad_onset']
         self.chunk_size = kwargs['chunk_size']
+        self.min_duration_off = kwargs.get('min_duration_off', 0.1)
+        self.min_duration_on = kwargs.get('min_duration_on', 0.1)
+        self.dilatation = kwargs.get('dilatation', 0.3)
         self.vad_pipeline, vad_utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                                                       model='silero_vad',
                                                       force_reload=False,
@@ -36,16 +39,32 @@ class Silero(Vad):
         if sample_rate != 16000:
             raise ValueError("Only 16000Hz sample rate is allowed")
 
-        timestamps = self.get_speech_timestamps(audio["waveform"],
-                                                model=self.vad_pipeline,
-                                                sampling_rate=sample_rate,
-                                                max_speech_duration_s=self.chunk_size,
-                                                threshold=self.vad_onset
-                                                # min_silence_duration_ms = self.min_duration_off/1000
-                                                # min_speech_duration_ms = self.min_duration_on/1000
-                                                # ...
-                                                # See silero documentation for full option list
-                                                )
+        timestamps = self.get_speech_timestamps(
+            audio["waveform"],
+            model=self.vad_pipeline,
+            sampling_rate=sample_rate,
+            max_speech_duration_s=self.chunk_size,
+            # threshold=self.vad_onset
+            min_silence_duration_ms = self.min_duration_off * 1000,
+            min_speech_duration_ms = self.min_duration_on * 1000,
+        )
+
+        if self.dilatation > 0:
+            # expand all segments by self.dilatation seconds
+            dil = round(self.dilatation * sample_rate)
+            new_timestamps = []
+            for ts in timestamps:
+                new_ts = {
+                    "start": max(0, ts["start"] - dilatation),
+                    "end": min(self.chunk_size * sample_rate), ts["end"] + dilatation),
+                }
+                if len(new_timestamps) > 0 and new_timestamps[-1]["end"] >= new_ts["start"]:
+                    # merge
+                    new_timestamps[-1]["end"] = new_ts["end"]
+                else:
+                    new_timestamps.append(new_ts)
+            timestamps = new_timestamps 
+            
         return [SegmentX(i['start'] / sample_rate, i['end'] / sample_rate, "UNKNOWN") for i in timestamps]
 
     @staticmethod
